@@ -2,4 +2,4 @@
 __pycache__
 .venv
 mods
-jarvault.db
+*.db
