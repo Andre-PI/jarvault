@@ -1,8 +1,10 @@
+from asyncio.log import logger
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from pydantic import BaseModel
 
 from .db import get_db
 from .models import Jar
@@ -93,6 +95,47 @@ async def get_jar(jar_id: int, db: Session = Depends(get_db)):
     if not jar:
         raise HTTPException(status_code=404, detail="Jar not found")
     return jar
+
+
+class BulkDeleteRequest(BaseModel):
+    jar_ids: List[int]
+    password: str
+
+
+@router.delete("/jars/bulk")
+async def delete_jars_bulk(
+    payload: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+):
+    jar_ids = payload.jar_ids
+    password = payload.password
+    
+    try:
+        if not password or password.strip() == "":
+            raise HTTPException(status_code=400, detail="Password is required and cannot be empty")
+        if not settings.delete_password:
+            raise HTTPException(status_code=500, detail="Server misconfigured: PASSWORD not set")
+        if password != settings.delete_password:
+            raise HTTPException(status_code=403, detail="Invalid password")
+        if not jar_ids:
+            raise HTTPException(status_code=400, detail="At least one jar ID must be provided")
+        if not all(isinstance(id, int) and id > 0 for id in jar_ids):
+            raise HTTPException(status_code=422, detail="All jar IDs must be positive integers")
+        storage = JarStorage()
+        jars = db.execute(select(Jar).where(Jar.id.in_(jar_ids))).scalars().all()
+        if not jars:
+            raise HTTPException(status_code=404, detail="No jars found for provided IDs")
+        for jar in jars:
+            db.delete(jar)
+            storage.delete(jar.name)
+        db.commit()
+        return None
+    except HTTPException as h:
+        logger.error(h)
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting jars {jar_ids}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/jars/{jar_id}", status_code=204)
