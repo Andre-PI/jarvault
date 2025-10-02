@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(BASE_DIR / ".env"), env_file_encoding="utf-8")
 
     database_url: str = Field(default_factory=default_database_url)
-    storage_dir: str = Field(default_factory=default_storage_dir)
+    storage_dir: str = Field(default_factory=default_storage_dir, alias="STORAGE_DIR")
     delete_password: Optional[str] = Field(default=None, alias="PASSWORD")
 
 
