@@ -27,7 +27,6 @@ async def create_jar(
 
     sha256 = storage.compute_sha256(file.file)
 
-    # Enforce uniqueness by hash
     existing = db.execute(select(Jar).where(Jar.sha256 == sha256)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="A JAR with same content already exists")
